@@ -7,7 +7,7 @@
 
 using namespace std;
 
-float area_of_triangle(vector <pair<int, int>>& v) { /*Finds area of three vertices, when inputted in clockwise direction*/
+float area_of_triangle(vector <pair<int, int>>& v) { /*Finds area of three vertices, where the vertices are given in clockwise direction*/
     float area = (v[0].first - v[2].first) * (v[2].second - v[1].second) - (v[2].first - v[1].first) * (v[0].second - v[2].second);
     return area / 2;
 }
