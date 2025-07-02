@@ -4,135 +4,192 @@
 #include <deque>
 #include <chrono>
 #include <iomanip>
-
+#include <fstream>
+#include <string>
+#include <sstream>
+#include <thread>
 using namespace std;
 
-float area_of_triangle(vector <pair<int, int>>& v) { /*Finds area of three vertices, where the vertices are given in clockwise direction*/
-    float area = (v[0].first - v[2].first) * (v[2].second - v[1].second) - (v[2].first - v[1].first) * (v[0].second - v[2].second);
-    return area / 2;
+const int scale = 2;
+// all vertices given in anti-clock
+
+struct Point{
+    int x{}, y{};
+    Point *next=nullptr, *prev=nullptr;
+    Point() = default;
+    Point(int in1, int in2) : x(in1), y(in2) {}
+};
+
+struct Triangle {
+    Point p1{}, p2{}, p3{};
+    Triangle(const Point &A,const Point &B, const Point &C) : p1(A),p2(B),p3(C) {}
+    Triangle(Point* A, Point* B, Point* C) : p1(*A), p2(*B), p3(*C) {}
+    double area() {
+        double ans = (p1.x - p2.x) * (p3.y - p2.y) - (p3.x - p2.x)*(p1.y - p2.y);
+        return ans;
+    }
+    double area(const Point& A, const Point& B, const Point& C) {
+        double ans = (A.x - B.x) * (C.y - B.y) - (C.x - B.x) * (A.y - B.y);
+        return ans;
+    }
+    bool is_point_inside(const Point* p) {
+        double a1{}, a2{}, a3{}, a4{};
+        a1 = abs(area(p1,p2,*p));
+        a2 = abs(area(p3, p2,*p));
+        a3 = abs(area(p3, p1,*p));
+        a4 = abs(area(p1, p2, p3));
+        if (a4 == a1 + a2 + a3) return true;
+        return false;
+    }
+    void draw() {
+        glBegin(GL_TRIANGLES);
+        glColor3f(1.0, 0.0, 0.0);  
+        glVertex2f(p1.x * scale, p1.y * scale);
+        glVertex2f(p2.x * scale, p2.y * scale);
+        glVertex2f(p3.x * scale, p3.y * scale);
+        glEnd();
+    }
+};
+
+struct Line {
+    Point p1{}, p2{};
+    Line(Point* A,Point* B) : p1(*A),p2(*B) {}
+    static void draw(vector<Line> &lines);
+};
+
+void Line::draw(vector<Line>& lines) {
+    glBegin(GL_LINES);
+    glColor3f(1.0, 0.0, 0.0);
+    for (auto& i : lines) {
+        glVertex2f(i.p1.x * scale, i.p1.y * scale);
+        glVertex2f(i.p2.x * scale, i.p2.y * scale);
+    }
+    glEnd();
 }
 
-bool is_vertex_inside(vector <pair<int, int>>& v) { /*This function checks whether the fourth vertex lies inside the triangle formed by the three vertices or not*/
-    int a = 0;
-    vector <pair<int, int>> v1;
-    vector <pair<int, int>> v2;
-    vector <pair<int, int>> v3;
-
-    v1.push_back(make_pair(v[0].first, v[0].second));
-    v1.push_back(make_pair(v[3].first, v[3].second));
-    v1.push_back(make_pair(v[2].first, v[2].second));
-
-    v2.push_back(make_pair(v[2].first, v[2].second));
-    v2.push_back(make_pair(v[3].first, v[3].second));
-    v2.push_back(make_pair(v[1].first, v[1].second));
-
-
-    v3.push_back(make_pair(v[1].first, v[1].second));
-    v3.push_back(make_pair(v[3].first, v[3].second));
-    v3.push_back(make_pair(v[0].first, v[0].second));
-
-
-    if (area_of_triangle(v1) >= 0) {
-        a = a + 1;
+struct Polygon {
+    int n{};
+    Point* head = nullptr;
+    vector<Point*> original_points;
+    void add_point(Point* A) {
+        if (n == 0) {
+            head = A;
+        }
+        else if (n == 1) {
+            head->next = A;
+            A->prev = head;
+        }
+        else if (n == 2) {
+            A->next = head;
+            A->prev = head->next;
+            head->prev = A;
+            head->next->next = A;
+        }
+        else {
+            A->prev = head->prev;
+            A->next = head;
+            A->prev->next = A;
+            head->prev = A;
+        }
+        original_points.push_back(A);
+        n++;
     }
-    if (area_of_triangle(v2) >= 0) {
-        a = a + 1;
+    void remove_point(Point* A) {
+        A->prev->next = A->next;
+        A->next->prev = A->prev;
+        if (A == head) {
+            head = A->next;
+        }
+        n--;
     }
-    if (area_of_triangle(v3) >= 0) {
-        a = a + 1;
+
+    void draw() {
+        if (original_points.size() < 2) return;
+        glBegin(GL_LINES);
+        glColor3f(0.0, 0.0, 1.0);
+        for (int i = 0; i < original_points.size(); i++) {
+            Point* p1 = original_points[i];
+            Point* p2 = original_points[(i + 1) % original_points.size()];
+            glVertex2f(p1->x * scale, p1->y * scale);
+            glVertex2f(p2->x * scale, p2->y * scale);
+        }
+        this_thread::sleep_for(chrono::milliseconds(75));
+        glEnd();
     }
-    if (a != 3) {
-        return false; /*vertex is not inside*/
-    }
-    else {
-        return true;
-    }
-}
+};
 
 int main()
 {
-    int n;
-    cout << "Enter Number of Vertices: ";
-    cin >> n;
-    if (n == 1 || n == 2) {
-        cout << "Can't triangulate as there is too less vertices." << endl;
+    ifstream file("data.txt");
+    if (!file) {
+        cerr << "Failed to open file.\n";
+        return 1;
     }
-    cout << "Enter the vertices in anti-clockwise order:" << endl;;
-    vector <pair<int, int>> v_in;
-    vector <pair<int, int>> v;
-    vector <char> comma;
+    int t;
+    file >> t;
+    file.ignore();
+    vector<Polygon*> polygons(t);
+    vector<double> run_times(t);
+    vector<vector<Line>> lines(t);
+    for(int k=0;k<t;k++){
+        int n;
+        file >> n;
+        file.ignore();
+        Polygon *P = new Polygon();
+        for (int i = 0;i < n;i++) {
+            string line;
+            std::getline(file, line); 
+            stringstream ss(line);
+            string x_str, y_str;
 
-    for (int i = 0;i < n;i++) {
-;
-        int a, b;
-        char s;
-        cin >> a>> s >> b;
-        v_in.push_back(make_pair(a, b));
-        comma.push_back(s);
-
-    }
-    for (int i = 0;i < n;i++) { /*For reversing the order of the vertices as the code is written for clockwise vertices but input is anticlockwise*/
-        v.push_back(make_pair(v_in[n - i - 1].first, v_in[n - i - 1].second));
-    }
-
-    deque <int> path; /* Shows the path of which the algorithm should follow*/
-    for (int i = 0;i < n;i++) {
-        path.push_back(i);
-    }
-
-    vector <pair<int, int>> line_pairs; /* vector to store the pairs of vertices to be joined*/
-
-    int l = n;
-
-    auto start = chrono::high_resolution_clock::now();
-
-    while (l > 3) {
-
-        for (int i = 0;i < l - 2;i++) {
-            vector <pair<int, int>> temp;
-            temp.push_back(make_pair(v[path[i]].first, v[path[i]].second));
-            temp.push_back(make_pair(v[path[i + 1]].first, v[path[i + 1]].second));
-            temp.push_back(make_pair(v[path[i + 2]].first, v[path[i + 2]].second));
-
-            int clip_count = 0;
-
-            for (auto it : path) {
-                temp.push_back(make_pair(v[it].first, v[it].second));
-                /*This part finds out if there is any vertex which is inside the triangle*/
-                if (is_vertex_inside(temp)) {
-                    clip_count = clip_count + 1;
-                    temp.pop_back();
-                }
-                else {
-                    temp.pop_back();
-                }
+            if (getline(ss, x_str, ',') && std::getline(ss, y_str)) {
+                Point *A=new Point(stoi(x_str), stoi(y_str));
+                (*P).add_point(A);
             }
-            /* Clip_count is supposed to be 3 for clipping as we add one to the value of clip_count is there is something in the triangle, but the three vertices of the 
-            triangle always get added,so it always a minimum of 3*/
-
-            if (clip_count == 3 && area_of_triangle(temp) > 0) { /* Checking whether we can clip or not */
-                line_pairs.push_back(make_pair(path[i], path[i + 2]));
-                path.erase(path.begin() + (i + 1));
-                break;
+            else {
+                cerr << "Invalid format in line: " << line << "\n";
             }
+
         }
-        l = l - 1;
-        /*subtract 1 as one elment is removed from path*/
+        polygons[k] = P;
+    }
+    cout << "Got file data" << '\n';
+    for (int _ = 0;_ < t;_++) {
+        Polygon P = (*polygons[_]);
+        Point* curr = P.head;
+        auto start = chrono::high_resolution_clock::now();
+        while (P.n > 3) {
+            Triangle tri(curr, curr->next, curr->next->next);
+            if (tri.area() >= 0) {
+                curr = curr->next;
+                continue;
+            }
+            Point* temp = curr->next->next->next;
+            bool flag = false;
+            while (temp != curr) {
+                if (tri.is_point_inside(temp)) {
+                    curr = curr->next;
+                    flag = true;
+                    break;
+                }
+                temp = temp->next;
+            }
+            if (!flag) {
+                lines[_].emplace_back(curr,curr->next->next);
+                P.remove_point(curr->next);
+            }
+            curr = curr->next;
+        }
+        auto end = chrono::high_resolution_clock::now();
+        double time_taken = chrono::duration_cast<chrono::nanoseconds>(end - start).count();
+        run_times[_] = time_taken;
     }
 
-    auto end = chrono::high_resolution_clock::now();
-    double time_taken =
-        chrono::duration_cast<chrono::nanoseconds>(end - start).count();
-
-    time_taken *= 1e-9;
-    cout << "Time taken by program is : " << fixed
-        << time_taken << setprecision(9);
-    cout << " sec" << endl;
-    cout << "Blue represents the polygon, while red represents the diagonals drawn for triangulation"<<endl;
-
-
+    cout << "Triangulation Done!!\n";
+    for (int i = 0;i < t;i++) {
+        cout << "Number of points: " << polygons[i]->original_points.size() << ' ' << "Time Taken: " << run_times[i]*(1e-9) << '\n';
+    }
     GLFWwindow* window;
-
     /* Initialize the library */
     if (!glfwInit())
         return -1;
@@ -147,7 +204,6 @@ int main()
 
     /* Make the window's context current */
     glfwMakeContextCurrent(window);
-
     glViewport(0.0f, 0.0f,1000 , 1000); // specifies the part of the window to which OpenGL will draw (in pixels), convert from normalised to pixels
     glMatrixMode(GL_PROJECTION); // projection matrix defines the properties of the camera that views the objects in the world coordinate frame. Here you typically set the zoom factor, aspect ratio and the near and far clipping planes
     glLoadIdentity(); // replace the current matrix with the identity matrix and starts us a fresh because matrix transforms such as glOrpho and glRotate cumulate, basically puts us at (0, 0, 0)
@@ -159,43 +215,23 @@ int main()
 
 
     glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-    glClearColor(1.0f, 1.0f, 1.0f, 0.0f);
+    glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
     while (!glfwWindowShouldClose(window))
     {
         
         /* Render here */
-        glClear(GL_COLOR_BUFFER_BIT);
-        /* This piece of code draws the polgon*/
-        for (int i = 0;i < n-1;i++) {
-            glBegin(GL_LINES);
-            glColor3f(0.0, 0.0, 1.0);
-            glVertex2f((v[i].first)*2, (v[i].second)*2);
-            glVertex2f((v[i+1].first)*2,(v[i+1].second)*2);
-
+        for (int i = 0;i < t;i++) {
+            glClear(GL_COLOR_BUFFER_BIT);
+            polygons[i]->draw();
+            Line::draw(lines[i]);
+            /* Swap front and back buffers */
+            glfwSwapBuffers(window);
+            /* Poll for and process events */
+            glfwPollEvents();
+            this_thread::sleep_for(chrono::milliseconds(700));
         }
-        glVertex2f((v[n-1].first)*2, (v[n-1].second)*2);
-        glVertex2f((v[0].first)*2, (v[0].second)*2);
-        glEnd();
+        glfwTerminate();
 
-         for (int i = 0;i < line_pairs.size();i++) {
-            
-            glBegin(GL_LINES);
-            glColor3f(1.0, 0.0, 0.0);
-            glVertex2f((v[line_pairs[i].first].first)*2, (v[line_pairs[i].first].second)*2);
-            glVertex2f((v[line_pairs[i].second].first)*2, (v[line_pairs[i].second].second)*2);
-        }
-        glEnd();
-        
-
-
-        /* Swap front and back buffers */
-        glfwSwapBuffers(window);
-
-
-        /* Poll for and process events */
-        glfwPollEvents();
     }
-
-    glfwTerminate();
     return 0;
 }
