@@ -6,6 +6,10 @@ Problem statement:
 How many guards are sufficient to observe every point inside an art gallery, modeled as a simple polygon?
 Triangulation answers this by decomposing the polygon into triangles, which makes visibility analysis and guard placement easier.
 
-Input is a set 2-D coordinates, with the total number of polygons given in the start in data.txt.
+Input Format
 
-Make sure to upload the coordinates in CCW.
+- The input is read from a file named `data.txt`.
+- The format is as follows:
+- <number of polygons> <number of vertices in polygon 1> x1,y1 x2,y2 ... <number of vertices in polygon 2> x1,y1 ... ``` - Each polygon must: - Be simple (no self-intersections) - Have vertices listed in **counter-clockwise (CCW)** order - Contain at least 3 vertices
+
+Download Opengl and GLFW, and make sure to link the libraries.
